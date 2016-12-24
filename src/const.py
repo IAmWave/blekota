@@ -1,0 +1,1 @@
+DEFAULT_FS = 8000
