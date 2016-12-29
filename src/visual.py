@@ -31,3 +31,17 @@ def compare(y, y2, fs=const.DEFAULT_FS):
     plt.ylabel('Square error')
 
     plt.show()
+
+def show(y, fs=const.DEFAULT_FS):
+    n = y.size
+    x = np.linspace(0, n / fs, n) # np.arange(n)
+    
+    fig = plt.figure()
+    constrainXPanZoomBehavior(fig)
+    plt.title('Waveform')
+    plt.axhline(0, color='black')
+    plt.plot(x, y, 'r', linewidth=2.0)
+    plt.xlim(0, 0.05)
+    plt.xlabel('Time')
+    plt.ylabel('Sound wave')
+    plt.show()

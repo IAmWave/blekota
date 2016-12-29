@@ -1,5 +1,6 @@
 from pysoundcard import Stream
 from scipy.io.wavfile import read as read_wav
+from scipy.io.wavfile import write as write_wav
 import numpy as np
 import sounddevice as sd
 import const
@@ -20,4 +21,5 @@ def play(arr, fs=const.DEFAULT_FS, blocking=False):
     s.start()
     s.write(arr)
     s.stop()
+    write_wav('foo.wav', fs, arr)
     #sd.play(arr, fs, blocking=blocking)
