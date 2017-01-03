@@ -7,13 +7,14 @@ import rnn
 import gru
 import visual
 
-y, fs = audio_io.load_file('data/shapes/sin_440Hz_8kHz_3s.wav')
-time = 0.1
+y, fs = audio_io.load_file('data/shapes/warble_1000-2000Hz_-6dBFS_3s.wav')
+time = 3
+#y = np.zeros_like(y) + 0.4
 
-clf = gru.GRU(256)
+clf = gru.GRU(100)  # rnn.RNN()  # gru.GRU(256)
 print("Training...")
 # rnn.train(y)
-clf.train(y, it=200)
+clf.train(y, it=5000)
 print("Done")
 
 y = y[0:int(fs * time)]
@@ -21,10 +22,9 @@ n = y.size
 
 # rnn.hprev = np.zeros((hidden_size,1)) # reset RNN memory
 #y2 = (rnn.sample(np.zeros((rnn.hidden_size,1)), 128, y.size) - 128) / 128
-y2 = clf.sample(n)
+y2 = clf.sample(n, hint=y[0:1])
 
-#audio_io.play(np.concatenate((np.zeros(2000), y2)), blocking=False)
-import compander
-y = compander.unquantize(compander.quantize(y))
-visual.compare(y, y2, fs=fs)
-#visual.show(y2, fs=fs)
+#np.concatenate((np.zeros(2000), y2))
+audio_io.play(y2, blocking=False)
+#visual.compare(y, y2, fs=fs)
+visual.show(y2, fs=fs)
