@@ -25,24 +25,25 @@ class GRULayer:
             initial_h = np.zeros(self.h_n)
 
         self.t_n, _ = x.shape
-        self.h, self.h0, self.z, self.r, self.q = {}, {}, {}, {}, {}
+        self.h = np.zeros((self.t_n, self.h_n))
+        self.h0, self.z, self.r, self.q = np.zeros_like(self.h), np.zeros_like(self.h), np.zeros_like(self.h), np.zeros_like(self.h)
         h, h0, z, r, q = self.h, self.h0, self.z, self.r, self.q
         self.x = np.copy(x)
-        h[-1] = initial_h
 
         for t in range(self.t_n):
-            z[t] = sigmoid(np.dot(self.Wz, h[t - 1]) + np.dot(self.Uz, x[t]) + self.bz)
-            r[t] = sigmoid(np.dot(self.Wr, h[t - 1]) + np.dot(self.Ur, x[t]) + self.br)
-            q[t] = r[t] * h[t - 1]
+            prev_h = h[t - 1] if t > 0 else initial_h
+            z[t] = sigmoid(np.dot(self.Wz, prev_h) + np.dot(self.Uz, x[t]) + self.bz)
+            r[t] = sigmoid(np.dot(self.Wr, prev_h) + np.dot(self.Ur, x[t]) + self.br)
+            q[t] = r[t] * prev_h
             h0[t] = np.tanh(np.dot(self.W, q[t]) + np.dot(self.U, x[t]) + self.bh)
-            h[t] = (1 - z[t]) * h[t - 1] + h0[t] * z[t]
+            h[t] = (1 - z[t]) * prev_h + h0[t] * z[t]
 
         return h
 
     def backward(self, dh):
         x, h, h0, z, r, q = self.x, self.h, self.h0, self.z, self.r, self.q
         W, U, Wr, Ur, Wz, Uz, br, bz, bh = self.W, self.U, self.Wr, self.Ur, self.Wz, self.Uz, self.br, self.bz, self.bh
-        dh0, dz, dr, dq, dx = {}, {}, {}, {}, {}
+        dh0, dz, dr, dq, dx = np.zeros_like(dh), np.zeros_like(dh), np.zeros_like(dh), np.zeros_like(dh), np.zeros((self.t_n, self.x_n))
         dW, dU, dWr, dUr, dWz, dUz, dbr, dbz, dbh = [np.zeros_like(param) for param in
                                                      [W, U, Wr, Ur, Wz, Uz, br, bz, bh]]
 
@@ -146,7 +147,7 @@ class GRU:
             targets = x[p + 1:p + seq_length + 1]
 
             h = layer.forward(inputs)
-            dh = {}
+            dh = np.zeros_like(h)
             loss = 0
             dWy = np.zeros_like(self.Wy)
             dby = np.zeros_like(self.by)
