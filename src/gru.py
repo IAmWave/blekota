@@ -150,12 +150,9 @@ class GRU:
         res = np.zeros(n)
 
         for t in range(n):
-            z = sigmoid(np.dot(l.Wz, h) + np.dot(l.Uz, x))
-            r = sigmoid(np.dot(l.Wr, h) + np.dot(l.Ur, x))
-            q = r * h
-            h0 = np.tanh(np.dot(l.W, q) + np.dot(l.U, x))
-            h = (1 - z) * h + h0 * z
-            y = np.dot(self.Wy, h[:, np.newaxis]).flatten() + self.by
+            h = self.layer.forward(x[None], initial_h=h).flatten()
+            y = np.dot(self.Wy, h[:, None]).flatten() + self.by
+
             p = np.exp(y) / np.sum(np.exp(y))
             chosen = np.random.choice(range(256), p=p.ravel())
             x = np.zeros(256)
