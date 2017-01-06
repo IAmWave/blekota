@@ -48,6 +48,8 @@ class GRULayer:
                                                      [W, U, Wr, Ur, Wz, Uz, br, bz, bh]]
 
         for t in reversed(range(self.t_n)):
+            h_prev = h[t - 1] if t > 0 else np.zeros(self.h_n)
+
             dh0[t] = dh[t] * z[t]
             dh0i = dh0[t] * (1 - h0[t] ** 2)
             dW += np.dot(dh0i[:, np.newaxis], q[t][np.newaxis])  # np.outer
@@ -55,15 +57,15 @@ class GRULayer:
             dbh += dh0i
             dq = np.dot(W.T, dh0i)
             # r
-            dr = dq * h[t - 1]
+            dr = dq * h_prev
             dri = r[t] * (1 - r[t]) * dr
-            dWr += np.dot(dri[:, np.newaxis], h[t - 1][np.newaxis])
+            dWr += np.dot(dri[:, np.newaxis], h_prev[np.newaxis])
             dUr += np.dot(dri[:, np.newaxis], x[t][np.newaxis])
             dbr += dri
             # z
-            dz[t] = dh[t] * (h0[t] - h[t - 1])
+            dz[t] = dh[t] * (h0[t] - h_prev)
             dzi = z[t] * (1 - z[t]) * dz[t]
-            dWz += np.dot(dzi[:, np.newaxis], h[t - 1][np.newaxis])
+            dWz += np.dot(dzi[:, np.newaxis], h_prev[np.newaxis])
             dUz += np.dot(dzi[:, np.newaxis], x[t][np.newaxis])
             dbz += dzi
 
@@ -73,45 +75,6 @@ class GRULayer:
 
         self.dW, self.dU, self.dWr, self.dUr, self.dWz, self.dUz, self.dbr, self.dbz, self.dbh \
             = dW, dU, dWr, dUr, dWz, dUz, dbr, dbz, dbh
-
-    # based on https://gist.github.com/karpathy/d4dee566867f8291f086#gistcomment-1508982
-    def gradCheck(self, x):
-        num_checks, delta = 10, 1e-5
-
-        h = self.forward(x)
-        # <outdated>
-        h2 = {}
-        for i in range(-1, 10):
-            h2[i] = np.copy(h[i])
-
-        for t in range(10):
-            h2[t][t] -= 1
-        # </outdated>
-        self.backward(h2)
-
-        for param, dparam, name in zip([self.W, self.U, self.Wr, self.Ur, self.Wz, self.Uz],
-                                       [self.dW, self.dU, self.dWr, self.dUr, self.dWz, self.dUz],
-                                       ['W', 'U', 'Wr', 'Ur', 'Wz', 'Uz']):
-            s0 = dparam.shape
-            s1 = param.shape
-            assert s0 == s1, ('Error dims dont match: %s and %s.' % repr(s0), repr(s1))
-            print(name)
-            for i in range(num_checks):
-                ri = int(np.random.randint(param.size))
-                # evaluate cost at [x + delta] and [x - delta]
-                old_val = param.flat[ri]
-                param.flat[ri] = old_val + delta
-                cg0 = cost(gru.forward(x), 10)
-                param.flat[ri] = old_val - delta
-                cg1 = cost(gru.forward(x), 10)
-                param.flat[ri] = old_val  # reset old value for this parameter
-                # fetch both numerical and analytic gradient
-                grad_analytic = dparam.flat[ri]
-                grad_numerical = (cg0 - cg1) / (2 * delta)
-
-                rel_error = abs(grad_analytic - grad_numerical) / abs(grad_numerical + grad_analytic)
-                print('%f, %f => %e ' % (grad_numerical, grad_analytic, rel_error))
-                # rel_error should be on order of 1e-7 or less
 
 
 class GRU:
@@ -161,9 +124,9 @@ class GRU:
                 dWy += np.dot(dy[:, np.newaxis], h[j][np.newaxis])
                 dh[j] = np.dot(self.Wy.T, dy[:, np.newaxis]).flatten()
 
-                #dh[j] = np.exp(h[j]) / np.sum(np.exp(h[j]))
-                #loss += -np.log(dh[j][quantized[j]])
-                #dh[j][quantized[j]] -= 1
+                # dh[j] = np.exp(h[j]) / np.sum(np.exp(h[j]))
+                # loss += -np.log(dh[j][quantized[j]])
+                # dh[j][quantized[j]] -= 1
 
             layer.backward(dh)
             smooth_loss = smooth_loss * 0.999 + loss * 0.001
@@ -200,3 +163,46 @@ class GRU:
             res[t] = chosen
 
         return compander.unquantize(res)
+
+
+# based on https://gist.github.com/karpathy/d4dee566867f8291f086#gistcomment-1508982
+def gradCheck():
+
+    def cost(h):
+        dh = h - np.linspace(-1, 1, h.shape[0])[:, None]
+        return 0.5 * np.sum(dh * dh)
+
+    num_checks, delta = 5, 1e-5
+    n = 20
+    x = np.arange(n)[:, None]
+    l = GRULayer(1, 10)
+
+    h = l.forward(x)
+    dh = h - np.linspace(-1, 1, n)[:, None]
+
+    l.backward(dh)
+
+    for param, dparam, name in zip([l.W, l.U, l.Wr, l.Ur, l.Wz, l.Uz, l.br, l.bz, l.bh],
+                                   [l.dW, l.dU, l.dWr, l.dUr, l.dWz, l.dUz, l.dbr, l.dbz, l.dbh],
+                                   ['W', 'U', 'Wr', 'Ur', 'Wz', 'Uz', 'br', 'bz', 'bh']):
+        s0 = dparam.shape
+        s1 = param.shape
+        assert s0 == s1, ('Error dims dont match: %s and %s.' % repr(s0), repr(s1))
+        print(name)
+
+        for i in range(num_checks):
+            ri = int(np.random.randint(param.size))
+            # evaluate cost at [x + delta] and [x - delta]
+            old_val = param.flat[ri]
+            param.flat[ri] = old_val + delta
+            cg0 = cost(l.forward(x))
+            param.flat[ri] = old_val - delta
+            cg1 = cost(l.forward(x))
+            param.flat[ri] = old_val  # reset old value for this parameter
+            # fetch both numerical and analytic gradient
+            grad_analytic = dparam.flat[ri]
+            grad_numerical = (cg0 - cg1) / (2 * delta)
+
+            rel_error = abs(grad_analytic - grad_numerical) / abs(grad_numerical + grad_analytic)
+            print('%f, %f => %e ' % (grad_numerical, grad_analytic, rel_error))
+            # rel_error should be on order of 1e-7 or less
