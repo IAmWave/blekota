@@ -16,6 +16,7 @@ class GRU:
     def train(self, s, it=100):
         seq_length = 90
         loss_report_n = 100
+        batches = 1
 
         quantized = compander.quantize(s)
         n = s.size
@@ -26,13 +27,13 @@ class GRU:
         for i in range(it):
             # prepare inputs (we're sweeping from left to right in steps seq_length long)
             if p + seq_length + 1 >= n or i == 0:
-                h_prev = np.zeros(layer.h_n)  # reset RNN memory
+                h_prev = np.zeros((layer.h_n, batches))  # reset RNN memory
                 p = 0  # go from start of data
                 print('New epoch (it ', (i + 1), ')')
 
-            inputs = np.zeros((seq_length, 256))
+            inputs = np.zeros((seq_length, 256, batches))
             for j in range(seq_length):
-                inputs[j][quantized[p + j]] = 1
+                inputs[j, quantized[p + j], 0] = 1
 
             h = layer.forward(inputs, initial_h=h_prev)
             dh = np.zeros_like(h)
@@ -40,17 +41,17 @@ class GRU:
             dWy = np.zeros_like(self.Wy)
 
             for j in range(seq_length):
-                y = np.dot(self.Wy, np.r_[h[j], np.ones(1)][:, np.newaxis]).flatten()
+                y = np.dot(self.Wy, np.r_[h[j], np.ones((1, batches))])
                 if np.max(y) > 500:  # learning rate too high?
                     print('Warning: y value too large: ', np.max(y))
                     np.clip(y, None, 500, out=y)
 
-                dy = np.exp(y) / np.sum(np.exp(y))  # also means the probabilities
-                loss += -np.log(dy[quantized[p + 1 + j]])
-                dy[quantized[p + 1 + j]] -= 1
+                dy = np.exp(y) / np.sum(np.exp(y), axis=0)  # also means the probabilities
+                loss += -np.log(dy[quantized[p + 1 + j], 0])
+                dy[quantized[p + 1 + j], 0] -= 1
 
-                dWy += np.dot(dy[:, np.newaxis], np.r_[h[j], np.ones(1)][np.newaxis])
-                dh[j] = np.dot(self.Wy.T, dy[:, np.newaxis]).flatten()[:-1]
+                dWy += np.dot(dy, np.r_[h[j], np.ones((1, batches))].T)
+                dh[j] = np.dot(self.Wy.T, dy)[:-1, :]
 
             h_prev = np.copy(h[-1])
             layer.backward(dh)
@@ -60,7 +61,7 @@ class GRU:
                 print(losses)
                 print('iter:\t%d\tloss:\t%f' % (i + 1, np.mean(losses)))  # print progress
 
-            alpha = 1e-1
+            alpha = 5e-2
             for param, dparam, mem in zip([layer.W, layer.Wr, layer.Wz, self.Wy],
                                           [layer.dW, layer.dWr, layer.dWz, dWy],
                                           [self.mW, self.mWr, self.mWz, self.mWy]):
@@ -72,19 +73,18 @@ class GRU:
 
     def sample(self, n, hint=np.zeros(1)):
         l = self.layer
-        h = np.zeros(l.h_n)
+        h = np.zeros((l.h_n, 1))
         x = np.zeros(256)
         x[compander.quantize(hint[0])] = 0
         res = np.zeros(n)
         p = np.zeros((n, 256))
 
         for t in range(n):
+            h = self.layer.forward(x[None, :, None], initial_h=h)[0]
+            y = np.dot(self.Wy, np.r_[h, np.ones((1, 1))])
 
-            h = self.layer.forward(x[None], initial_h=h).flatten()
-            y = np.dot(self.Wy, np.r_[h, 1][:, None]).flatten()
-
-            p[t] = np.exp(y) / np.sum(np.exp(y))
-            chosen = np.random.choice(range(256), p=p[t].ravel())
+            p[t] = (np.exp(y) / np.sum(np.exp(y))).ravel()
+            chosen = np.random.choice(range(256), p=p[t])
             x = np.zeros(256)
             if t < hint.shape[0]:
                 x[compander.quantize(hint[t])] = 1
