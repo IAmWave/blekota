@@ -2,10 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import const
 
+
 def compare(y, y2, fs=const.DEFAULT_FS):
     n = y.size
-    x = np.linspace(0, n / fs, n) # np.arange(n)
-    
+    x = np.linspace(0, n / fs, n)  # np.arange(n)
+
     plt.figure()
     plt.subplot(211)
     plt.title('Waveform comparison')
@@ -16,8 +17,9 @@ def compare(y, y2, fs=const.DEFAULT_FS):
     plt.ylabel('Sound wave')
 
     running_average_n = 100
+
     def running_average(arr):
-        return np.convolve(arr, np.ones((running_average_n,))/running_average_n, mode='valid')
+        return np.convolve(arr, np.ones((running_average_n,)) / running_average_n, mode='valid')
 
     err = running_average((y - y2) ** 2)
     err_bad = running_average(y ** 2)    # error when predicting 0
@@ -32,10 +34,11 @@ def compare(y, y2, fs=const.DEFAULT_FS):
 
     plt.show()
 
+
 def show(y, fs=const.DEFAULT_FS):
     n = y.size
-    x = np.linspace(0, n / fs, n) # np.arange(n)
-    
+    x = np.linspace(0, n / fs, n)  # np.arange(n)
+
     plt.figure()
     plt.title('Waveform')
     plt.axhline(0, color='black')
@@ -43,4 +46,11 @@ def show(y, fs=const.DEFAULT_FS):
     plt.xlim(0, 0.05)
     plt.xlabel('Time')
     plt.ylabel('Sound wave')
+    plt.show()
+
+
+def heatmap(p, fs=const.DEFAULT_FS):
+    plt.figure()
+    plt.title('Probability heatmap')
+    plt.imshow(p.T, cmap='hot', interpolation='nearest')
     plt.show()
