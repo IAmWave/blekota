@@ -5,17 +5,13 @@ https://gist.github.com/karpathy/d4dee566867f8291f086
 """
 import numpy as np
 import math
+import compander
 
 # hyperparameters
-mu = 256
 hidden_size = 100  # size of hidden layer of neurons
-seq_length = 50  # number of steps to unroll the RNN for
+seq_length = 90  # number of steps to unroll the RNN for
 learning_rate = 1e-1
-vocab_size = mu
-
-
-def quantize(x):  # -1 to 1
-    return math.floor((x + 1) * (mu / 2))
+vocab_size = 256
 
 
 class RNN:
@@ -63,6 +59,8 @@ class RNN:
             dhnext = np.dot(self.Whh.T, dhraw)
         for dparam in [dWxh, dWhh, dWhy, dbh, dby]:
             np.clip(dparam, -5, 5, out=dparam)  # clip to mitigate exploding gradients
+
+        #print('mean ', np.mean(dWhh ** 2))
         return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs) - 1]
 
     def sample(self, n, hint=np.zeros(1), h=np.zeros((hidden_size, 1))):
@@ -72,27 +70,32 @@ class RNN:
         """
         #x = (np.arange(vocab_size))
         x = np.zeros((vocab_size, 1))
-        x[quantize(hint[0])] = 1
+        x[compander.quantize(hint[0])] = 1
+        p = np.zeros((n, 256))
 
         ixes = np.zeros(n)
         for t in range(n):
             h = np.tanh(np.dot(self.Wxh, x) + np.dot(self.Whh, h) + self.bh)
             y = np.dot(self.Why, h) + self.by
-            p = np.exp(y) / np.sum(np.exp(y))
-            ix = np.random.choice(range(vocab_size), p=p.ravel())
+            p[t] = (np.exp(y) / np.sum(np.exp(y))).flatten()
+            ix = np.random.choice(range(vocab_size), p=p[t].ravel())
             x = np.zeros((vocab_size, 1))
             x[ix] = 1
             ixes[t] = ix
-        return (ixes / (mu / 2)) - 1
+
+        self.p = p
+        return compander.unquantize(ixes)
 
     def train(self, s, it=1000):
-        data = np.vectorize(quantize)(s)
-        print(data.size)
+        loss_report_n = 100
+        data = compander.quantize(s)
+
         n, p = 0, 0
         mWxh, mWhh, mWhy = np.zeros_like(self.Wxh), np.zeros_like(self.Whh), np.zeros_like(self.Why)
         mbh, mby = np.zeros_like(self.bh), np.zeros_like(self.by)  # memory variables for Adagrad
-        smooth_loss = -np.log(1.0 / vocab_size) * seq_length  # loss at iteration 0
-        while n <= it:
+        losses = np.zeros(loss_report_n)
+
+        while n < it:
             # prepare inputs (we're sweeping from left to right in steps seq_length long)
             if p + seq_length + 1 >= len(data) or n == 0:
                 hprev = np.zeros((hidden_size, 1))  # reset RNN memory
@@ -109,9 +112,11 @@ class RNN:
             """
             # forward seq_length characters through the net and fetch gradient
             loss, dWxh, dWhh, dWhy, dbh, dby, hprev = self.lossFun(inputs, targets, hprev)
-            smooth_loss = smooth_loss * 0.999 + loss * 0.001
-            if n % 100 == 0:
-                print('iter:\t%d\tloss:\t%f' % (n, smooth_loss))  # print progress
+
+            losses[n % loss_report_n] = loss
+            if n % loss_report_n == (loss_report_n - 1):
+                print(losses)
+                print('iter:\t%d\tloss:\t%f' % (n + 1, np.mean(losses)))  # print progress
 
             # perform parameter update with Adagrad
             for param, dparam, mem in zip([self.Wxh,  self.Whh,  self.Why,  self.bh,  self.by],

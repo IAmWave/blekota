@@ -10,18 +10,12 @@ class GRULayer:
         coef = 0.01
         self.x_n = x_n
         self.h_n = h_n
-        self.W = np.random.randn(h_n, h_n) * coef
-        self.U = np.random.randn(h_n, x_n) * coef
-        self.Wr = np.random.randn(h_n, h_n) * coef
-        self.Ur = np.random.randn(h_n, x_n) * coef
-        self.Wz = np.random.randn(h_n, h_n) * coef
-        self.Uz = np.random.randn(h_n, x_n) * coef
-        self.br = np.zeros(h_n)
-        self.bz = np.zeros(h_n)
-        self.bh = np.zeros(h_n)
+        self.W = np.random.randn(h_n, x_n + h_n + 1) * coef
+        self.Wr = np.random.randn(h_n, x_n + h_n + 1) * coef
+        self.Wz = np.random.randn(h_n, x_n + h_n + 1) * coef
 
     def forward(self, x, initial_h=None):
-        if initial_h == None:
+        if initial_h is None:
             initial_h = np.zeros(self.h_n)
 
         self.t_n, _ = x.shape
@@ -31,50 +25,44 @@ class GRULayer:
         self.x = np.copy(x)
 
         for t in range(self.t_n):
-            prev_h = h[t - 1] if t > 0 else initial_h
-            z[t] = sigmoid(np.dot(self.Wz, prev_h) + np.dot(self.Uz, x[t]) + self.bz)
-            r[t] = sigmoid(np.dot(self.Wr, prev_h) + np.dot(self.Ur, x[t]) + self.br)
-            q[t] = r[t] * prev_h
-            h0[t] = np.tanh(np.dot(self.W, q[t]) + np.dot(self.U, x[t]) + self.bh)
-            h[t] = (1 - z[t]) * prev_h + h0[t] * z[t]
+            h_prev = h[t - 1] if t > 0 else initial_h
+            z[t] = sigmoid(np.dot(self.Wz, np.concatenate((x[t], h_prev, np.ones(1)))))
+            r[t] = sigmoid(np.dot(self.Wr, np.concatenate((x[t], h_prev, np.ones(1)))))
+            q[t] = r[t] * h_prev
+            h0[t] = np.tanh(np.dot(self.W, np.concatenate((x[t], q[t], np.ones(1)))))
+            h[t] = (1 - z[t]) * h_prev + h0[t] * z[t]
 
         return h
 
     def backward(self, dh):
         x, h, h0, z, r, q = self.x, self.h, self.h0, self.z, self.r, self.q
-        W, U, Wr, Ur, Wz, Uz, br, bz, bh = self.W, self.U, self.Wr, self.Ur, self.Wz, self.Uz, self.br, self.bz, self.bh
+        W, Wr, Wz, = self.W, self.Wr, self.Wz
         dh0, dz, dr, dq, dx = np.zeros_like(dh), np.zeros_like(dh), np.zeros_like(dh), np.zeros_like(dh), np.zeros((self.t_n, self.x_n))
-        dW, dU, dWr, dUr, dWz, dUz, dbr, dbz, dbh = [np.zeros_like(param) for param in
-                                                     [W, U, Wr, Ur, Wz, Uz, br, bz, bh]]
+        dW, dWr, dWz = np.zeros_like(W), np.zeros_like(Wr), np.zeros_like(Wz)
 
         for t in reversed(range(self.t_n)):
             h_prev = h[t - 1] if t > 0 else np.zeros(self.h_n)
-
             dh0[t] = dh[t] * z[t]
             dh0i = dh0[t] * (1 - h0[t] ** 2)
-            dW += np.dot(dh0i[:, np.newaxis], q[t][np.newaxis])  # np.outer
-            dU += np.dot(dh0i[:, np.newaxis], x[t].reshape(1, -1))
-            dbh += dh0i
-            dq = np.dot(W.T, dh0i)
+            dW += np.dot(dh0i[:, np.newaxis], np.concatenate((x[t], q[t], np.ones(1)))[None])
+            dxq = np.dot(W.T, dh0i)
+            dx[t] += dxq[:self.x_n]
+            dq = dxq[self.x_n:-1]
             # r
             dr = dq * h_prev
             dri = r[t] * (1 - r[t]) * dr
-            dWr += np.dot(dri[:, np.newaxis], h_prev[np.newaxis])
-            dUr += np.dot(dri[:, np.newaxis], x[t][np.newaxis])
-            dbr += dri
+            dWr += np.dot(dri[:, None], np.concatenate((x[t], h_prev, np.ones(1)))[None])
+            dxh = np.dot(Wr.T, dri)
             # z
             dz[t] = dh[t] * (h0[t] - h_prev)
             dzi = z[t] * (1 - z[t]) * dz[t]
-            dWz += np.dot(dzi[:, np.newaxis], h_prev[np.newaxis])
-            dUz += np.dot(dzi[:, np.newaxis], x[t][np.newaxis])
-            dbz += dzi
-
-            dx[t] = np.dot(U.T, dh0i) + np.dot(Ur.T, dri) + np.dot(Uz.T, dzi)
+            dWz += np.dot(dzi[:, None], np.concatenate((x[t], h_prev, np.ones(1)))[None])
+            dxh += np.dot(Wz.T, dzi)
+            dx[t] += dxh[:self.x_n]
             if t > 0:
-                dh[t - 1] += dh[t] * (1 - z[t]) + dq * r[t] + np.dot(Wr.T, dri) + np.dot(Wz.T, dzi)
+                dh[t - 1] += dh[t] * (1 - z[t]) + dq * r[t] + dxh[self.x_n:-1]
 
-        self.dW, self.dU, self.dWr, self.dUr, self.dWz, self.dUz, self.dbr, self.dbz, self.dbh \
-            = dW, dU, dWr, dUr, dWz, dUz, dbr, dbz, dbh
+        self.dW, self.dWr, self.dWz = dW, dWr, dWz
 
 
 class GRU:
@@ -85,9 +73,13 @@ class GRU:
         self.layer = GRULayer(self.x_n, h_n)
         self.Wy = np.random.randn(self.x_n, h_n) * 0.01
         self.by = np.zeros(self.x_n)
+        self.mW, self.mWr, self.mWz, self.mWy, self.mby = \
+            [np.zeros_like(x) for x in [self.layer.W, self.layer.Wr, self.layer.Wz, self.Wy, self.by]]
 
     def train(self, s, it=100):
-        seq_length = 50
+        seq_length = 90
+        loss_report_n = 100
+
         quantized = compander.quantize(s)
         n = s.size
         x = np.zeros((n, 256))
@@ -95,48 +87,54 @@ class GRU:
             x[i][quantized[i]] = 1
 
         p = 0
-        smooth_loss = -np.log(1.0 / 256) * seq_length
         layer = self.layer
-        mW, mU, mWr, mUr, mWz, mUz, mbr, mbz, mbh, mWy, mby = [np.zeros_like(x) for x in
-                                                               [layer.W, layer.U, layer.Wr, layer.Ur, layer.Wz, layer.Uz,
-                                                                layer.br, layer.bz, layer.bh, self.Wy, self.by]]
+        losses = np.zeros(loss_report_n)
 
         for i in range(it):
             # prepare inputs (we're sweeping from left to right in steps seq_length long)
             if p + seq_length + 1 >= n or i == 0:
-                h = np.zeros(layer.h_n)  # reset RNN memory
+                h_prev = np.zeros(layer.h_n)  # reset RNN memory
                 p = 0  # go from start of data
+                print('New epoch')
             inputs = x[p:p + seq_length]
-            targets = x[p + 1:p + seq_length + 1]
+            #targets = x[p + 1:p + seq_length + 1]
 
-            h = layer.forward(inputs)
+            h = layer.forward(inputs, initial_h=h_prev)
             dh = np.zeros_like(h)
             loss = 0
             dWy = np.zeros_like(self.Wy)
             dby = np.zeros_like(self.by)
             for j in range(seq_length):
                 y = np.dot(self.Wy, h[j][:, np.newaxis]).flatten() + self.by
+                if np.max(y) > 500:
+                    print('Warning: y value too large: ', np.max(y))
+                    print(np.dot(self.Wy, np.ones(500, 1)))
+                    print(self.by)
+                    print('Iteration ', i)
+                    return
+                    np.clip(y, None, 500, out=y)
+
                 dy = np.exp(y) / np.sum(np.exp(y))  # also means the probabilities
-                loss += -np.log(dy[quantized[j]])
-                dy[quantized[j]] -= 1
+                loss += -np.log(dy[quantized[p + 1 + j]])
+                dy[quantized[p + 1 + j]] -= 1
 
                 dby += dy
                 dWy += np.dot(dy[:, np.newaxis], h[j][np.newaxis])
                 dh[j] = np.dot(self.Wy.T, dy[:, np.newaxis]).flatten()
 
-                # dh[j] = np.exp(h[j]) / np.sum(np.exp(h[j]))
-                # loss += -np.log(dh[j][quantized[j]])
-                # dh[j][quantized[j]] -= 1
-
+            h_prev = np.copy(h[-1])
             layer.backward(dh)
-            smooth_loss = smooth_loss * 0.999 + loss * 0.001
-            if i % 100 == 0:
-                print('iter:\t%d\tloss:\t%f' % (i, smooth_loss))  # print progress
 
-            alpha = 0.01
-            for param, dparam, mem in zip([layer.W, layer.U, layer.Wr, layer.Ur, layer.Wz, layer.Uz, layer.br, layer.bz, layer.bh, self.Wy, self.by],
-                                          [layer.dW, layer.dU, layer.dWr, layer.dUr, layer.dWz, layer.dUz, layer.dbr, layer.dbz, layer.dbh, dWy, dby],
-                                          [mW, mU, mWr, mUr, mWz, mUz, mbr, mbz, mbh, mWy, mby]):
+            losses[i % loss_report_n] = loss
+            if i % loss_report_n == (loss_report_n - 1):
+                print(losses)
+                print('iter:\t%d\tloss:\t%f' % (i + 1, np.mean(losses)))  # print progress
+
+            alpha = 1e-2
+            for param, dparam, mem in zip([layer.W, layer.Wr, layer.Wz, self.Wy, self.by],
+                                          [layer.dW, layer.dWr, layer.dWz, dWy, dby],
+                                          [self.mW, self.mWr, self.mWz, self.mWy, self.mby]):
+                np.clip(dparam, -5, 5, out=dparam)
                 mem += dparam * dparam
                 param += -alpha * dparam / np.sqrt(mem + 1e-8)  # adagrad update
 
@@ -148,22 +146,36 @@ class GRU:
         x = np.zeros(256)
         x[compander.quantize(hint[0])] = 0
         res = np.zeros(n)
+        p = np.zeros((n, 256))
 
         for t in range(n):
+            """
+            z = sigmoid(np.dot(l.Wz, np.concatenate((x, h, np.ones(1)))))
+            r = sigmoid(np.dot(l.Wr, np.concatenate((x, h, np.ones(1)))))
+            q = r * h
+            h0 = np.tanh(np.dot(l.W, np.concatenate((x, q, np.ones(1)))))
+            h = (1 - z) * h + h0 * z
+            y = np.dot(self.Wy, h[:, None]).flatten() + self.by
+            """
+
             h = self.layer.forward(x[None], initial_h=h).flatten()
             y = np.dot(self.Wy, h[:, None]).flatten() + self.by
 
-            p = np.exp(y) / np.sum(np.exp(y))
-            chosen = np.random.choice(range(256), p=p.ravel())
+            p[t] = np.exp(y) / np.sum(np.exp(y))
+            chosen = np.random.choice(range(256), p=p[t].ravel())
             x = np.zeros(256)
-            x[chosen] = 1
+            if t < hint.shape[0]:
+                x[compander.quantize(hint[t])] = 1
+            else:
+                x[chosen] = 1
             res[t] = chosen
 
+        self.p = p
         return compander.unquantize(res)
 
 
 # based on https://gist.github.com/karpathy/d4dee566867f8291f086#gistcomment-1508982
-def gradCheck():
+def gradCheck(l=GRULayer(1, 10)):
 
     def cost(h):
         dh = h - np.linspace(-1, 1, h.shape[0])[:, None]
@@ -172,16 +184,15 @@ def gradCheck():
     num_checks, delta = 5, 1e-5
     n = 20
     x = np.arange(n)[:, None]
-    l = GRULayer(1, 10)
 
     h = l.forward(x)
     dh = h - np.linspace(-1, 1, n)[:, None]
 
     l.backward(dh)
 
-    for param, dparam, name in zip([l.W, l.U, l.Wr, l.Ur, l.Wz, l.Uz, l.br, l.bz, l.bh],
-                                   [l.dW, l.dU, l.dWr, l.dUr, l.dWz, l.dUz, l.dbr, l.dbz, l.dbh],
-                                   ['W', 'U', 'Wr', 'Ur', 'Wz', 'Uz', 'br', 'bz', 'bh']):
+    for param, dparam, name in zip([l.W, l.Wr, l.Wz],
+                                   [l.dW, l.dWr, l.dWz],
+                                   ['W', 'Wr', 'Wz']):
         s0 = dparam.shape
         s1 = param.shape
         assert s0 == s1, ('Error dims dont match: %s and %s.' % repr(s0), repr(s1))
