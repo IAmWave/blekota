@@ -13,13 +13,13 @@ class GRU:
         self.mW, self.mWr, self.mWz, self.mWy = \
             [np.zeros_like(x) for x in [self.layer.W, self.layer.Wr, self.layer.Wz, self.Wy]]
 
-    def train(self, s, it=100):
-        seq_length = 90
+    def train(self, sound, it=100):
+        seq_length = 100
         loss_report_n = 100
-        batches = 1
+        batches = 10
 
-        quantized = compander.quantize(s)
-        n = s.size
+        x = np.resize(compander.quantize(sound), (batches, sound.size // batches)).T
+        n = x.shape[0]
         p = 0
         layer = self.layer
         losses = np.zeros(loss_report_n)
@@ -33,7 +33,8 @@ class GRU:
 
             inputs = np.zeros((seq_length, 256, batches))
             for j in range(seq_length):
-                inputs[j, quantized[p + j], 0] = 1
+                for k in range(batches):
+                    inputs[j, x[p + j, k], k] = 1
 
             h = layer.forward(inputs, initial_h=h_prev)
             dh = np.zeros_like(h)
@@ -47,18 +48,20 @@ class GRU:
                     np.clip(y, None, 500, out=y)
 
                 dy = np.exp(y) / np.sum(np.exp(y), axis=0)  # also means the probabilities
-                loss += -np.log(dy[quantized[p + 1 + j], 0])
-                dy[quantized[p + 1 + j], 0] -= 1
+                for k in range(batches):
+                    loss += -np.log(dy[x[p + 1 + j, k], k])
+                    dy[x[p + 1 + j, k], k] -= 1
 
                 dWy += np.dot(dy, np.r_[h[j], np.ones((1, batches))].T)
                 dh[j] = np.dot(self.Wy.T, dy)[:-1, :]
 
+            loss /= batches  # makes checking easier
             h_prev = np.copy(h[-1])
             layer.backward(dh)
 
             losses[i % loss_report_n] = loss
             if i % loss_report_n == (loss_report_n - 1):
-                print(losses)
+                # print(losses)
                 print('iter:\t%d\tloss:\t%f' % (i + 1, np.mean(losses)))  # print progress
 
             alpha = 5e-2

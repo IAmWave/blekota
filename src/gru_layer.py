@@ -13,7 +13,9 @@ class GRULayer:
         self.Wz = np.random.randn(h_n, x_n + h_n + 1) * coef
 
     def forward(self, x, initial_h=None):
-        self.t_n, _, self.b = x.shape  # shape should be (seq_length, x_n (#features), batch_size)
+        # x:          (seq_length, x_n (#features), batch_size)
+        # initial_h:  (h_n, batch_size)
+        self.t_n, _, self.b = x.shape
         b = self.b
 
         if initial_h is None:
