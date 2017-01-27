@@ -9,9 +9,9 @@ class GRULayer:
         coef = 0.01
         self.x_n = x_n
         self.h_n = h_n
-        self.W = Param(np.random.randn(h_n, x_n + h_n + 1) * coef, name=(name + 'GRU_W'))
-        self.Wr = Param(np.random.randn(h_n, x_n + h_n + 1) * coef, name=(name + 'GRU_Wr'))
-        self.Wz = Param(np.random.randn(h_n, x_n + h_n + 1) * coef, name=(name + 'GRU_Wz'))
+        self.W = Param(np.random.randn(h_n, x_n + h_n + 1) * coef, name=(name + ' GRU_W'))
+        self.Wr = Param(np.random.randn(h_n, x_n + h_n + 1) * coef, name=(name + ' GRU_Wr'))
+        self.Wz = Param(np.random.randn(h_n, x_n + h_n + 1) * coef, name=(name + ' GRU_Wz'))
 
     def forward(self, x, initial_h=None):
         # x:          (seq_length, x_n (#features), batch_size)
@@ -23,8 +23,11 @@ class GRULayer:
             initial_h = np.zeros((self.h_n, b))
 
         self.h = np.zeros((self.t_n, self.h_n, b))
+
         self.h0, self.z, self.r, self.q = [np.zeros_like(self.h) for x in range(4)]
+
         h, h0, z, r, q = self.h, self.h0, self.z, self.r, self.q
+
         self.x = np.copy(x)
         for t in range(self.t_n):
             h_prev = h[t - 1] if t > 0 else initial_h
@@ -40,7 +43,8 @@ class GRULayer:
     def backward(self, dh):
         # shape of dh should be (t_n, h_n, b) = (seq_length, hidden_size, batch_size)
         x, h, h0, z, r, q, b = self.x, self.h, self.h0, self.z, self.r, self.q, self.b
-        W, Wr, Wz, = self.W, self.Wr, self.Wz
+        W, Wr, Wz = self.W, self.Wr, self.Wz
+
         dh0, dz, dr, dq = [np.zeros_like(dh) for x in range(4)]
         dx = np.zeros((self.t_n, self.x_n, b))
 
