@@ -70,10 +70,21 @@ class GRULayer:
             if t > 0:
                 dh[t - 1] += dh[t] * (1 - z[t]) + dq * r[t] + dxh[self.x_n:-1]
 
-        return np.copy(dx)
+        return dx
 
     def getParams(self):
         return [self.W, self.Wr, self.Wz]
+
+    def __getstate__(self):  # only pickle layer parameters
+        state = {
+            'x_n': self.x_n,
+            'h_n': self.h_n,
+            'W': self.W,
+            'Wr': self.Wr,
+            'Wz': self.Wz
+        }
+        return state
+
 
 # based on https://gist.github.com/karpathy/d4dee566867f8291f086#gistcomment-1508982
 

@@ -8,14 +8,14 @@ class GRU:
 
     seq_length = 100
     loss_report_n = 50
-    batches = 80
+    batches = 100
     alpha = 2e-3
 
     def __init__(self, h_n, layer_n=1):
         self.layer_n = layer_n
         self.x_n = 256
         self.h_n = h_n
-        self.epochs = -1  # -1 to compensate for initialization
+        self.epochs = 0
         self.iterations = 0
 
         self.layers = [GRULayer(self.x_n, h_n, name='0')]  # first layer has different dimensions
@@ -28,10 +28,8 @@ class GRU:
         for i in range(self.layer_n):
             self.params += self.layers[i].getParams()
 
-        print('Initialized GRU with', layer_n, 'layers and', h_n, 'hidden units per layer')
-
     def train(self, sound, it=100):
-
+        print('Training for', it, 'iterations')
         x = np.resize(compander.quantize(sound), (self.batches, sound.size // self.batches)).T
         n = x.shape[0]
         l_n = self.layer_n
@@ -44,7 +42,8 @@ class GRU:
         for i in range(it):
             # prepare inputs (we're sweeping from left to right in steps seq_length long)
             if p + self.seq_length + 1 >= n or i == 0:
-                self.epochs += 1
+                if i != 0:
+                    self.epochs += 1
                 # reset RNN memory
                 for l in range(l_n):
                     h_prev[l] = np.zeros((self.h_n, self.batches))
@@ -100,7 +99,7 @@ class GRU:
             p += self.seq_length  # move data pointer
             self.iterations += 1
 
-    def sample(self, n, hint=np.zeros(1)):
+    def sample(self, n, hint=np.zeros(1), temperature=1):
         layers = self.layers
         l_n = self.layer_n
         h = {}
@@ -110,15 +109,20 @@ class GRU:
         x = np.zeros(256)
         x[compander.quantize(hint[0])] = 0
         res = np.zeros(n)
-        p = np.zeros((n, 256))
+        p_save_n = min(n, 8000 * 5)
+        p = np.zeros((p_save_n, 256))
 
         for t in range(n):
             for l in range(l_n):
                 h[l] = layers[l].forward(x[None, :, None] if (l == 0) else h[l - 1][None, :], initial_h=h[l])[0]
 
             y = np.dot(self.Wy.a, np.r_[h[l_n - 1], np.ones((1, 1))])
-            p[t] = (np.exp(y) / np.sum(np.exp(y))).ravel()
-            chosen = np.random.choice(range(256), p=p[t])
+            y /= temperature
+            p_cur = (np.exp(y) / np.sum(np.exp(y))).ravel()
+            chosen = np.random.choice(range(256), p=p_cur)
+            if t < p_save_n:
+                p[t] = p_cur
+
             x = np.zeros(256)
             # use hint output if available
             x[compander.quantize(hint[t]) if (t < hint.shape[0]) else chosen] = 1
@@ -135,3 +139,7 @@ class GRU:
             res += "\n{:12}{}".format(name, value)
 
         return res
+
+    def __getstate__(self):  # for pickling
+        self.p = np.zeros(1)  # huge space waste; unnecessary
+        return self.__dict__
