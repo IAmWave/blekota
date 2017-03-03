@@ -6,23 +6,22 @@ from param import Param
 
 class GRU:
 
-    seq_length = 100
-    loss_report_n = 50
-    batches = 100
-    alpha = 2e-3
-
-    def __init__(self, h_n, layer_n=1):
-        self.layer_n = layer_n
-        self.x_n = 256
+    def __init__(self, h_n, layer_n=1, seq_length=160, batches=60, alpha=2e-3, loss_report_n=50):
         self.h_n = h_n
+        self.layer_n = layer_n
+        self.seq_length = seq_length
+        self.batches = batches
+        self.alpha = alpha
+        self.loss_report_n = loss_report_n
+
         self.epochs = 0
         self.iterations = 0
 
-        self.layers = [GRULayer(self.x_n, h_n, name='0')]  # first layer has different dimensions
+        self.layers = [GRULayer(256, h_n, name='0')]  # first layer has different dimensions
         for i in range(self.layer_n - 1):
             self.layers.append(GRULayer(h_n, h_n, name=str(i + 1)))
 
-        self.Wy = Param(np.random.randn(self.x_n, h_n + 1) * 0.01, name='Wy')
+        self.Wy = Param(np.random.randn(256, h_n + 1) * 0.01, name='Wy')
 
         self.params = [self.Wy]
         for i in range(self.layer_n):
