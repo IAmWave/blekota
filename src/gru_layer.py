@@ -1,6 +1,9 @@
 import numpy as np
-from scipy.special import expit as sigmoid
 from param import Param
+
+
+def sigmoid(x):  # logistic sigmoid function
+    return np.reciprocal(1 + np.exp(-x))
 
 
 class GRULayer:
@@ -86,11 +89,9 @@ class GRULayer:
         return state
 
 
-# based on https://gist.github.com/karpathy/d4dee566867f8291f086#gistcomment-1508982
-
-
 def gradCheck(l=GRULayer(1, 10)):
-
+    # gradient check based on
+    # https://gist.github.com/karpathy/d4dee566867f8291f086#gistcomment-1508982
     def cost(h):
         dh = h - np.linspace(-1, 1, h.shape[0])[:, None, None]
         return 0.5 * np.sum(dh * dh), dh

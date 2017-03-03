@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.linear_model import LinearRegression
+import pickle
 
 import audio_io
 import linreg
@@ -7,23 +7,29 @@ import rnn
 import gru
 import visual
 
-y, fs = audio_io.load_file('data/shapes/warble2.wav')
-time = 10
-y = y[:800000 * 5]  # 100 seconds at most
-clf = gru.GRU(50, layer_n=3)
+
+def save(name):
+    pickle.dump(clf, open(name, 'wb'))
+
+
+def heatmap(start=0, length=1000):
+    visual.heatmap(clf.p[start:(start + length)])
+
+show = visual.show
+play = audio_io.play
+
+file = 'data/voice/vali/vali_16k.wav'
+
+y, fs = audio_io.load_file(file)
+time = 1
+clf = gru.GRU(256, layer_n=5)
+clf.file = file
+#clf = pickle.load(open('pi4l_2.pkl', 'rb'))
+print(clf)
+print('Data file:', file)
 print("Training...")
 
-clf.train(y, it=2000)
+clf.train(y, it=10000)
 print("Done")
 
-y = y[0:int(fs * time)]
-n = y.size
-
-# rnn.hprev = np.zeros((hidden_size,1)) # reset RNN memory
-#y2 = (rnn.sample(np.zeros((rnn.hidden_size,1)), 128, y.size) - 128) / 128
-y2 = clf.sample(n, hint=y[:1])
-# y2 = clf.sample(n, hint=y[:1])
-
-#np.concatenate((np.zeros(2000), y2))
-#audio_io.play(y2, blocking=False)
-#visual.compare(y, y2, fs=fs)
+#y2 = clf.sample((fs * time), hint=y[:1])
