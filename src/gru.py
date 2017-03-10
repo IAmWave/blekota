@@ -1,21 +1,29 @@
 import numpy as np
+import pickle
+
 import compander
 from gru_layer import GRULayer
 from param import Param
+import audio_io
 
 
 class GRU:
 
-    def __init__(self, h_n, layer_n=1, seq_length=160, batches=60, alpha=2e-3, loss_report_n=50):
+    def __init__(self, h_n, layer_n=1, seq_length=80, batches=80,
+                 alpha=2e-3, loss_report_n=50, name='model', fs=8000, file=''):
         self.h_n = h_n
         self.layer_n = layer_n
         self.seq_length = seq_length
         self.batches = batches
         self.alpha = alpha
         self.loss_report_n = loss_report_n
+        self.name = name
+        self.fs = fs
+        self.file = file
 
         self.epochs = 0
         self.iterations = 0
+        self.pos = 0
 
         self.layers = [GRULayer(256, h_n, name='0')]  # first layer has different dimensions
         for i in range(self.layer_n - 1):
@@ -32,7 +40,6 @@ class GRU:
         x = np.resize(compander.quantize(sound), (self.batches, sound.size // self.batches)).T
         n = x.shape[0]
         l_n = self.layer_n
-        p = 0
         losses = np.zeros(self.loss_report_n)
 
         layers = self.layers
@@ -40,20 +47,20 @@ class GRU:
 
         for i in range(it):
             # prepare inputs (we're sweeping from left to right in steps seq_length long)
-            if p + self.seq_length + 1 >= n or i == 0:
+            if self.pos + self.seq_length + 1 >= n or i == 0:
                 if i != 0:
                     self.epochs += 1
                 # reset RNN memory
                 for l in range(l_n):
                     h_prev[l] = np.zeros((self.h_n, self.batches))
 
-                p = 0  # go from start of data
+                self.pos = 0  # go from start of data
                 # print('New epoch (it ', (i + 1), ')')
 
             inputs = np.zeros((self.seq_length, 256, self.batches))
             for t in range(self.seq_length):
                 for k in range(self.batches):
-                    inputs[t, x[p + t, k], k] = 1
+                    inputs[t, x[self.pos + t, k], k] = 1
 
             hs, dhs = {}, {}
 
@@ -73,13 +80,13 @@ class GRU:
 
                 dy = np.exp(y) / np.sum(np.exp(y), axis=0)  # also means the probabilities
                 for k in range(self.batches):
-                    loss += -np.log(dy[x[p + 1 + t, k], k])
-                    dy[x[p + 1 + t, k], k] -= 1  # different derivative at the correct answer
+                    loss += -np.log(dy[x[self.pos + 1 + t, k], k])
+                    dy[x[self.pos + 1 + t, k], k] -= 1  # different derivative at the correct answer
 
                 self.Wy.d += np.dot(dy, np.r_[hs[l_n - 1][t], np.ones((1, self.batches))].T)
                 dhs[l_n - 1][t] = np.dot(self.Wy.a.T, dy)[:-1, :]
 
-            loss /= self.batches  # makes comparing performance easier
+            loss /= self.batches * self.seq_length  # makes comparing performance easier
 
             for l in reversed(range(self.layer_n)):
                 dhprev = layers[l].backward(dhs[l])
@@ -95,8 +102,16 @@ class GRU:
             for param in self.params:
                 param.step(self.alpha)
 
-            p += self.seq_length  # move data pointer
+            self.pos += self.seq_length  # move data pointer
             self.iterations += 1
+
+            if self.iterations % 1000 == 0:
+                self.checkpoint()
+
+    def checkpoint(self):
+        pickle.dump(self, open(self.name + '_' + str(self.iterations) + '.pkl', 'wb'))
+        y2 = self.sample(50000)
+        audio_io.save_file(self.name + '_' + str(self.iterations) + '.wav', y2, self.fs)
 
     def sample(self, n, hint=np.zeros(1), temperature=1):
         layers = self.layers
@@ -131,7 +146,7 @@ class GRU:
         self.p = p
         return compander.unquantize(res)
 
-    def __repr__(self):
+    def __repr__(self):  # pretty-print the model
         res = "GRU"
         for name, value in zip(["Layers", "Hidden", "Batches", "Alpha", "Seq length", "Iterations", "Epochs"],
                                [self.layer_n, self.h_n, self.batches, self.alpha, self.seq_length, self.iterations, self.epochs]):
