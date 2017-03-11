@@ -136,17 +136,17 @@ def gradCheck(l=GRULayer(1, 10)):
         l(GRULayer, optional): The GRULayer to check.
     """
 
-    def cost(h):
-        """A dummy cost function; the square error compared to a linspace."""
+    def loss(h):
+        """A dummy loss function; the square error compared to a linspace."""
         dh = h - np.linspace(-1, 1, h.shape[0])[:, None, None]
         return 0.5 * np.sum(dh * dh), dh
 
     num_checks = 5
     delta = 1e-5
     n = 20
-    x = np.arange(n * 2.0).reshape((n, 1, 2))  # dummy input; 2 batches of length 20
+    x = np.arange(n * 2.0).reshape((n, 1, 2))  # dummy input; batch of size 2, 20 samples per sequence
     h = l.forward(x)
-    dh = cost(h)[1]
+    dh = loss(h)[1]
     dx = l.backward(dh)  # analytical gradient
 
     for param, name in zip([x, l.W, l.Wr, l.Wz],
@@ -157,12 +157,12 @@ def gradCheck(l=GRULayer(1, 10)):
 
         for i in range(num_checks):
             ri = int(np.random.randint(a.size))
-            # compute the derivative from definition - evaluate cost at [x+delta] and [x-delta]
+            # compute the derivative from definition - evaluate loss at [x+delta] and [x-delta]
             old_val = a.flat[ri]
             a.flat[ri] = old_val + delta
-            cg0 = cost(l.forward(x))[0]
+            cg0 = loss(l.forward(x))[0]
             a.flat[ri] = old_val - delta
-            cg1 = cost(l.forward(x))[0]
+            cg1 = loss(l.forward(x))[0]
             a.flat[ri] = old_val  # reset old value for this parameter
             # fetch both numerical and analytic gradient
             grad_analytic = (dx if (name == 'x') else param.d).flat[ri]  # again, treat x differently
