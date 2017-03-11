@@ -1,7 +1,9 @@
 """
-Based on "Minimal character-level Vanilla RNN model" self.by Andrej Karpathy (@karpathy)
+Based on "Minimal character-level Vanilla RNN model" by Andrej Karpathy (@karpathy)
 BSD License
 https://gist.github.com/karpathy/d4dee566867f8291f086
+
+Now unused and unmaintained, was used early on for comparison with GRU. Keeping for completeness.
 """
 import numpy as np
 import math
