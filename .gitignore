@@ -2,3 +2,12 @@ data/
 out/
 *.sublime-*
 __pycache__/
+last_played.wav
+src/main.py
+
+# LaTeX files
+*.aux
+*.dvi
+*.log
+*.gz
+*.toc

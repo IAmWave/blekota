@@ -14,6 +14,8 @@ class GRU:
     Very loosely based on Andrej Karpathy's code: https://gist.github.com/karpathy/d4dee566867f8291f086
     """
 
+    loss_report_n = 50
+
     def __init__(self, h_n, layer_n=1, seq_length=80, batches=80,
                  alpha=2e-3, loss_report_n=50, name='model', fs=const.DEFAULT_FS, file=''):
         """Initialize a GRU (with reasonable defaults).
@@ -58,16 +60,15 @@ class GRU:
         for i in range(self.layer_n):
             self.params += self.layers[i].getParams()
 
-    def train(self, sound, it):
-        """Train the model on a given sound.
+    def train(self, it):
+        """Train the model for a set number of iterations.
 
         Args:
-            sound (array): The sound on which to train the model. The model should always be trained
-                on the same sound (from self.file).
             it (int): The number of iterations for which the model should be trained.
         """
-
         print('Training for', it, 'iterations')
+
+        sound, self.fs = audio_io.load_file(self.file)
         # quantize and split into batches
         x = np.resize(compander.quantize(sound), (self.batches, sound.size // self.batches)).T
         n = x.shape[0]
@@ -216,8 +217,8 @@ class GRU:
     def __repr__(self):
         """Pretty-print (string representation)"""
         res = "GRU"
-        for name, value in zip(["Name", "File", "Layers", "Hidden", "Batches", "Alpha", "Seq length", "Iterations", "Epochs"],
-                               [self.name, self.file, self.layer_n, self.h_n, self.batches, self.alpha, self.seq_length, self.iterations, self.epochs]):
+        for name, value in zip(["Name", "File", "Layers", "Hidden", "Batches", "Alpha", "Seq length", "Iterations"],
+                               [self.name, self.file, self.layer_n, self.h_n, self.batches, self.alpha, self.seq_length, self.iterations]):
             res += "\n{:12}{}".format(name, value)
 
         return res
