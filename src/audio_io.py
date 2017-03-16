@@ -1,3 +1,5 @@
+# On my machine, importing pysoundcard produces
+# a lot of debugging messages. This is normal.
 from pysoundcard import Stream
 import soundfile
 import const
