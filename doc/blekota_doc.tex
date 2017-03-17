@@ -176,7 +176,7 @@ Dalším krokem měl být zvuk ne uměle vytvořený, ale přirozený. Takový z
 
 \textit{V této fázi jsem zprovoznil ukládání vytrénovaných modelů do souboru, proto nejsou starší modely dostupné k vyzkoušení.}
 \subsection{Hunger Artist}
-Přesunul jsem se k lidskému hlasu, který jsem pak zkoumal až do konce. Začal jsem s největší výzvou: čtený text. Zvuk je silně nepravidelný a pro model je těžké posunout se dál než k samému zvuku hlasu mluvčího, případně odlišení samohlásek. Jako trénovací soubor jsem použil povídku Franze Kafky \textit{The Hunger Artist} přečtenou Hanifem Kureishi. % http://www.openculture.com/freeaudiobooks -> gdn.book.121221.tm.Franz-Kafka-story-Hanif-Kureishi
+Přesunul jsem se k lidskému hlasu, který jsem pak zkoumal až do konce. Začal jsem s největší výzvou: čtený text. Zvuk je silně nepravidelný a pro model je těžké posunout se dál než k samému zvuku hlasu mluvčího, případně odlišení samohlásek. Jako trénovací soubor jsem použil povídku Franze Kafky \textit{The Hunger Artist} přečtenou Hanifem Kureishi. \cite{hungerartist}% http://www.openculture.com/freeaudiobooks -> gdn.book.121221.tm.Franz-Kafka-story-Hanif-Kureishi
 Porovnal jsem dva modely, které se lišily jen počtem vrstev (\verb|v1| --- dvě vrstvy; \verb|v2| --- tři vrstvy). Oba modely jsem trénoval stejnou dobu z hlediska skutečného času, proto prošla \verb|v2| menším počtem iterací. Výsledky jsou ale ve \verb|v2| výrazně lepší. \verb|v1| zůstává na úrovni jednolitého šumu nebo mumlání. Oproti tomu \verb|v2| už dělá pauzy v řeči a používá různé hlásky, přestože se většinou drží zvuku anglického \textit{w}.
 
 Zde jsem také zkoušel generovat s různou \textit{teplotou}. Všechny váhy v pravděpodobnostní distribuci umocníme na $\frac{1}{\tau}$, kde $\tau$ je teplota. Pokud $\tau<1$, budeme častěji vybírat možnosti, které model považuje za pravděpodobnější. Dostaneme často správnější, ale méně různorodé výsledky. Oproti tomu pokud $\tau > 1$, pravděpodobnosti se vyrovnávají.
@@ -184,8 +184,7 @@ Zde jsem také zkoušel generovat s různou \textit{teplotou}. Všechny váhy v 
 U modelu \verb|v2| byla nejlepší teplota kolem 0,9. Model dělá pauzy v řeči, náznaky v intonaci a hlas zní nejpřirozeněji. Nižší teplota generuje většinou jen ticho (protože pro model je většinou nejpravděpodobnější možnost pokračovat v tichu). Naopak při vyšší teplotě nedělá pauzy vůbec a hlas zní zkresleněji, protože se model méně drží správného tvaru zvukové křivky.
 
 \subsection{Alice}
-Stejný model jako \verb|v2| u předchozího pokusu jsem aplikoval na \textit{Alices Abenteuer im Wunderland} Lewise Carrolla. Vybral jsem kapitoly 6 a 8 přečtené \textbf{KÝM}? Cílem bylo srovnat zaprvé mužský a ženský hlas a zadruhé dva různé jazyky. Bohužel tento model dával výrazně horší výsledky než předchozí; generuje většinou ticho protkané občasnými náznaky řeči. Ani při vyšší teplotě nejsou výsledky o moc lepší. Uvádím ještě ukázky z verze modelu po 7300 iteracích, která se naopak vždy dlouho drží na jedné hlásce a pauzy nedělá vůbec.
-% https://librivox.org/alices-abenteuer-im-wunderland-von-lewis-carroll/ (part 6; part 8)
+Stejný model jako \verb|v2| u předchozího pokusu jsem aplikoval na \textit{Alices Abenteuer im Wunderland} Lewise Carrolla; kapitoly 6 a 8 \cite{alice}. Cílem bylo srovnat zaprvé mužský a ženský hlas a zadruhé dva různé jazyky. Bohužel tento model dával výrazně horší výsledky než předchozí; generuje většinou ticho protkané občasnými náznaky řeči. Ani při vyšší teplotě nejsou výsledky o moc lepší. Uvádím ještě ukázky z verze modelu po 7300 iteracích, která se naopak vždy dlouho drží na jedné hlásce a pauzy nedělá vůbec.
 
 \subsection{Pi}
 Po neúspěchu \textit{alice} jsem zvolil výrazně pravidelnější zvuk i silnější modely. Přečetl jsem za dvacet minut necelých 2000 cifer $pi$ a na tomto zvuku trénoval dva modely. \verb|v1| má velké $h_n$, ale \verb|v2| má o vrstvu více. Oba modely jsem trénoval stejnou dobu a protože \verb|v1| má asi dvakrát víc parametrů a trénuje se pomaleji, prošel méně iteracemi. Oba modely už ale stagnovaly a dále se nezlepšovaly.
@@ -266,8 +265,11 @@ DUCHI, John, E. HAZAN a Y. SINGER. Adaptive Subgradient Methods for Online Learn
 \bibitem{rmsprop}
 TIELEMAN, Tijmen a G. HINTON. Lecture 6.5-rmsprop: Divide the gradient by a running average of its recent magnitude. In: \textit{Neural Networks for Machine Learning} [online prezentace], 2012 [cit. 2017-3-8]. Dostupné z \url{http://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf}
 
+\bibitem{alice}
+\url{Dostupné z https://librivox.org/alices-abenteuer-im-wunderland-von-lewis-carroll}
 
-
+\bibitem{hungerartist}
+\url{Dostupné z http://download.guardian.co.uk/audio/kip/books/series/short-stories-podcast/1355504069169/8668/gdn.book.121221.tm.Franz-Kafka-story-Hanif-Kureishi.mp3}
 
 % T. Tieleman and G. Hinton. Lecture 6.5-rmsprop: Divide the gradient by a running average of its recent magnitude. COURSERA: Neural Networks for Machine Learning, 4, 2012.
 
