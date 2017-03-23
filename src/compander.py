@@ -4,7 +4,7 @@ import numpy as np
 import const
 
 mu = 255
-"""Standard value of μ, a constant used in the algorithm; determines the "zooom" of the ln function"""
+"""Standard value of μ, a constant used in the algorithm; determines the "zoom" of the ln function"""
 
 
 def quantize(x):
